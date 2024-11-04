@@ -1,7 +1,7 @@
 package whale.crawlers;
 
 import java.io.IOException;
-import java.util.List;
+import java.util.Collection;
 import java.util.Optional;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -24,8 +24,8 @@ abstract public class LinkCrawler <T>{
     }
 
     abstract String getContent() throws IOException;
-    public abstract List<String> getLinks();
-    abstract List<String> findLinksByPattern();
+    public abstract Collection<String> getLinks();
+    abstract Collection<String> findLinksByPattern();
     abstract boolean isValidPath(T path);
 
     public Optional<String> findFirstMatch(String text) {

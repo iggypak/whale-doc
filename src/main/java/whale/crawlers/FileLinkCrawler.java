@@ -3,6 +3,7 @@ package whale.crawlers;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.Collection;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -27,21 +28,21 @@ public class FileLinkCrawler extends LinkCrawler<String>{
     }
 
     @Override
-    public List<String> getLinks() {
+    public Collection<String> getLinks() {
         try {
             return Files.readAllLines(Path.of(resource))
                     .stream()
                     .map(
                             e -> findFirstMatch(e).orElseGet(String::new)
                     )
-                    .toList();
+                    .collect(Collectors.toSet());
         } catch (IOException e) {
             throw new RuntimeException(e);
         }
     }
 
     @Override
-    List<String> findLinksByPattern() {
+    Collection<String> findLinksByPattern() {
         return List.of();
     }
 
