@@ -11,9 +11,10 @@ import java.net.URL;
 import java.util.*;
 
 public class HttpLinkCrawler extends LinkCrawler<URL> {
-
+    private static final String INCORRECT_MIMETYPE_MESSAGE = "not text mime-type";
+    private static final int CONNECTION_TIMEOUT = 2000;
     private final Set<String> uniqueLinks = new HashSet<>();
-    private final Set<String> mistakenLinks = new HashSet<>();
+    private final Map<String, String> mistakenLinks = new HashMap<>();
 
     public HttpLinkCrawler(String url) throws MalformedURLException {
         super(new URL(url));
@@ -25,45 +26,54 @@ public class HttpLinkCrawler extends LinkCrawler<URL> {
 
     @Override
     String getContent() throws IOException {
-        return resource.getContent().toString();
+        return resourceAddress.getContent().toString();
     }
 
     @Override
-    public Collection<String> getLinks() {
-        return getLinkTree(getLinks(resource.toString()));
+    public Collection<String> fetchLinks() {
+        Collection<String> result = buildLinkTree(fetchLinks(resourceAddress.toString()));
+        result.add(resourceAddress.toString());
+        printMistakenLinks();
+        return result;
     }
 
-    private Collection<String> getLinkTree(Collection <String> links) {
-        for (String link: links) {
-            if(link.startsWith(resource.toString()) && !uniqueLinks.contains(link) && !link.equals(resource.toString())){
-                uniqueLinks.add(link);
-                uniqueLinks.addAll(getLinkTree(getLinks(link)));
+    private void printMistakenLinks() {
+        mistakenLinks.forEach((url, message) -> {
+            System.err.println(url + ": " + message);
+        });
+    }
+
+    private Collection<String> buildLinkTree(Collection<String> links) {
+        for (String link : links) {
+            if (isLinkEligibleForProcessing(link)) {
+                if (isValidPath(link)) {
+                    uniqueLinks.add(link);
+                    uniqueLinks.addAll(buildLinkTree(fetchLinks(link)));
+                } else {
+                    mistakenLinks.put(link, INCORRECT_MIMETYPE_MESSAGE);
+                }
             }
         }
         return uniqueLinks;
     }
 
-    private Collection <String> getLinks(String httpLink) {
+    private boolean isLinkEligibleForProcessing(String link) {
+        return link.startsWith(resourceAddress.toString()) && !uniqueLinks.contains(link) && !link.equals(resourceAddress.toString());
+    }
+
+    private Collection<String> fetchLinks(String httpLink) {
         try {
-            if (!isValidPath(httpLink)){
-                return Set.of(httpLink);
-            }
-            Document dom = Jsoup
-                    .connect(httpLink)
-                    .timeout(2000)
+            Document dom = Jsoup.connect(httpLink)
+                    .timeout(CONNECTION_TIMEOUT)
                     .get();
             Elements elements = dom.select("a");
-            return elements
-                    .stream()
+            return elements.stream()
                     .filter(element -> element.hasAttr("href"))
-                    .map(element -> getValidPath(
-                                httpLink, element.attr("href")
-                            )
-                    )
+                    .map(element -> resolvePath(httpLink, element.attr("href")))
                     .toList();
         } catch (HttpStatusException e) {
-            mistakenLinks.add(httpLink);
-            return Set.of();
+            mistakenLinks.put(httpLink, e.getMessage());
+            return List.of();
         } catch (IOException e) {
             throw new RuntimeException(e);
         }
@@ -75,36 +85,30 @@ public class HttpLinkCrawler extends LinkCrawler<URL> {
     }
 
     private boolean isValidPath(String httpLink) {
-        URL url = null;
         try {
-            url = new URL(httpLink);
+            URL url = new URL(httpLink);
+            return isValidPath(url);
         } catch (MalformedURLException e) {
             throw new RuntimeException(e);
         }
-        return isValidPath(url);
     }
 
     @Override
     boolean isValidPath(URL path) {
         try {
             String contentType = path.openConnection().getContentType();
-            if(contentType.matches(".*(text|application/xml|application/*+xml).*"))
-                return true;
+            return contentType != null && contentType.matches(".*(text|application/xml|application/*+xml).*");
         } catch (IOException e) {
             throw new RuntimeException(e);
         }
-        return false;
     }
 
-
-    public String getValidPath(String httpUrl, String path) {
-        String result = "";
+    public String resolvePath(String baseUrl, String path) {
         if (path.equals("/")) {
-            return httpUrl;
+            return baseUrl;
         }
-        if (path.startsWith("/")){
-            result = resource.toString().concat(path);
-            return result;
+        if (path.startsWith("/")) {
+            return resourceAddress.toString().concat(path);
         }
         return path;
     }

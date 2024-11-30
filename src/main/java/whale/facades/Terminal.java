@@ -40,7 +40,7 @@ public class Terminal implements Facade{
 
     @Override
     public void postChoosing() {
-        linkCrawler.getLinks().forEach(System.out::println);
+        linkCrawler.fetchLinks().forEach(System.out::println);
         printSuccess();
     }
 

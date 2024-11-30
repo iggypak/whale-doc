@@ -20,7 +20,7 @@ public class FileLinkCrawler extends LinkCrawler<String>{
     @Override
     String getContent() throws IOException {
         String result = Files.readAllLines(
-                Path.of(resource)
+                Path.of(resourceAddress)
         )
                 .stream()
                 .collect(Collectors.joining());
@@ -28,9 +28,9 @@ public class FileLinkCrawler extends LinkCrawler<String>{
     }
 
     @Override
-    public Collection<String> getLinks() {
+    public Collection<String> fetchLinks() {
         try {
-            return Files.readAllLines(Path.of(resource))
+            return Files.readAllLines(Path.of(resourceAddress))
                     .stream()
                     .map(
                             e -> findFirstMatch(e).orElseGet(String::new)
