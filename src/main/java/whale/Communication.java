@@ -1,6 +1,6 @@
 package whale;
 
-public enum Comminication {
+public enum Communication {
     DIALOG,
     AUTO
 }

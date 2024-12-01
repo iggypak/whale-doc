@@ -4,37 +4,39 @@ import org.jsoup.HttpStatusException;
 import org.jsoup.Jsoup;
 import org.jsoup.nodes.Document;
 import org.jsoup.select.Elements;
+import org.springframework.stereotype.Component;
+import whale.dto.LinkDTO;
 
 import java.io.IOException;
 import java.net.MalformedURLException;
 import java.net.URL;
 import java.util.*;
 
-public class HttpLinkCrawler extends LinkCrawler<URL> {
+@Component
+public class HttpLinkCrawler extends LinkCrawler {
     private static final String INCORRECT_MIMETYPE_MESSAGE = "not text mime-type";
     private static final int CONNECTION_TIMEOUT = 2000;
     private final Set<String> uniqueLinks = new HashSet<>();
     private final Map<String, String> mistakenLinks = new HashMap<>();
 
     public HttpLinkCrawler(String url) throws MalformedURLException {
-        super(new URL(url));
-    }
-
-    public HttpLinkCrawler(URL inetAddress) {
-        super(inetAddress);
+        super(LinkDTO.of(url));
     }
 
     @Override
-    String getContent() throws IOException {
-        return resourceAddress.getContent().toString();
+    public String getContent() throws IOException {
+        return new URL(resourceAddress.url()).getContent().toString();
     }
 
     @Override
-    public Collection<String> fetchLinks() {
-        Collection<String> result = buildLinkTree(fetchLinks(resourceAddress.toString()));
-        result.add(resourceAddress.toString());
-        printMistakenLinks();
-        return result;
+    public Collection<LinkDTO> fetchLinks() {
+        Collection<String> result = buildLinkTree(fetchLinks(resourceAddress.url()));
+        result.add(resourceAddress.url());
+        return result
+                .stream()
+                .map(
+                        e -> LinkDTO.of(e, "url", true)
+                ).toList();
     }
 
     private void printMistakenLinks() {
@@ -58,7 +60,7 @@ public class HttpLinkCrawler extends LinkCrawler<URL> {
     }
 
     private boolean isLinkEligibleForProcessing(String link) {
-        return link.startsWith(resourceAddress.toString()) && !uniqueLinks.contains(link) && !link.equals(resourceAddress.toString());
+        return link.startsWith(resourceAddress.url()) && !uniqueLinks.contains(link) && !link.equals(resourceAddress.url());
     }
 
     private Collection<String> fetchLinks(String httpLink) {
@@ -80,23 +82,18 @@ public class HttpLinkCrawler extends LinkCrawler<URL> {
     }
 
     @Override
-    Collection<String> findLinksByPattern() {
+    Collection<LinkDTO> findLinksByPattern() {
         return List.of();
     }
 
     private boolean isValidPath(String httpLink) {
-        try {
-            URL url = new URL(httpLink);
-            return isValidPath(url);
-        } catch (MalformedURLException e) {
-            throw new RuntimeException(e);
-        }
+        return isValidPath(LinkDTO.of(httpLink));
     }
 
     @Override
-    boolean isValidPath(URL path) {
+    boolean isValidPath(LinkDTO path) {
         try {
-            String contentType = path.openConnection().getContentType();
+            String contentType = new URL(path.url()).openConnection().getContentType();
             return contentType != null && contentType.matches(".*(text|application/xml|application/*+xml).*");
         } catch (IOException e) {
             throw new RuntimeException(e);
@@ -108,7 +105,7 @@ public class HttpLinkCrawler extends LinkCrawler<URL> {
             return baseUrl;
         }
         if (path.startsWith("/")) {
-            return resourceAddress.toString().concat(path);
+            return resourceAddress.url().concat(path);
         }
         return path;
     }
