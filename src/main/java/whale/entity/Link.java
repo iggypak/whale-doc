@@ -1,22 +1,31 @@
 package whale.entity;
 
-import jakarta.persistence.*;
+import lombok.AllArgsConstructor;
 import lombok.Data;
+import lombok.NoArgsConstructor;
+import org.springframework.data.annotation.Id;
+import org.springframework.data.redis.core.RedisHash;
+import java.io.Serializable;
 
 @Data
-@Entity
-@Table(name = "link")
-public class Link {
+@RedisHash("Link")
+@AllArgsConstructor
+@NoArgsConstructor
+public class Link implements Serializable {
     @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
-    private Long id;
+    private String url;
+    private boolean validUrl;
+    private String resource;
+    private String comment;
 
-    @Column(name = "url", unique = true)
-    private String Url;
-    @Column(name="valid_url")
-    private Boolean validUrl;
-    @Column(name = "type")
-    private String type;
-    @Column(name = "metadata")
-    private String metadata;
+    public Link(String url){
+        this.url = url;
+    }
+
+    public static Link of(String link, String resource) {
+        var currentLink = new Link();
+        currentLink.setUrl(link);
+        currentLink.setResource(resource);
+        return currentLink;
+    }
 }

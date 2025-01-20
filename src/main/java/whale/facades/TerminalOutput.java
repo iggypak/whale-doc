@@ -5,10 +5,11 @@ import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.shell.standard.ShellComponent;
 import org.springframework.shell.standard.ShellMethod;
 import whale.crawlers.LinkCrawler;
-import whale.dto.LinkDTO;
+import whale.entity.Link;
+import whale.services.LinkStorageService;
 
 import java.util.Scanner;
-
+//TODO add terminalInput
 @ShellComponent
 public class TerminalOutput implements Facade{
     static final Scanner SCANNER = new Scanner(System.in);
@@ -16,11 +17,17 @@ public class TerminalOutput implements Facade{
     private final LinkCrawler linkCrawler;
     private final ApplicationEventPublisher applicationEventPublisher;
     private boolean hasParams;
+    private final LinkStorageService linkStorageService;
 
     @Autowired
-    public TerminalOutput(LinkCrawler linkCrawler, ApplicationEventPublisher applicationEventPublisher) {
+    public TerminalOutput(
+            LinkCrawler linkCrawler,
+            ApplicationEventPublisher applicationEventPublisher,
+            LinkStorageService linkStorageService
+    ) {
         this.linkCrawler = linkCrawler;
         this.applicationEventPublisher = applicationEventPublisher;
+        this.linkStorageService = linkStorageService;
     }
 
     @ShellMethod
@@ -37,13 +44,14 @@ public class TerminalOutput implements Facade{
 
     @ShellMethod
     public String scan(String path) {
-        linkCrawler.setResourceAddress(LinkDTO.of(path));
+        linkCrawler.setResourceAddress(new Link(path));
         return links(path);
     }
 
     @Override
     public String links(String param) {
-        linkCrawler.fetchLinks().forEach(System.out::println);
+        var links = linkCrawler.fetchLinks();
+        linkStorageService.saveLinkBatch(links.stream().toList());
         return submit(null);
     }
 

@@ -1,12 +1,12 @@
 package whale.dto;
 
-public record LinkDTO(Long id, String url, Boolean validUrl, String type, String metadata) {
+public record LinkDTO(String url, Boolean validUrl, String resource, String comment) {
 
     public static LinkDTO of(String url){
-        return new LinkDTO(null, url, true, null, null);
+        return new LinkDTO(url, true, url, null);
     }
 
-    public static LinkDTO of(String url, String type, Boolean isValid) {
-        return new LinkDTO(null, url, isValid, type, null);
+    public static LinkDTO of(String url, String resource) {
+        return new LinkDTO(url, true, resource, null);
     }
 }

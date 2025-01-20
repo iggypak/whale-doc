@@ -1,7 +1,7 @@
 package whale.crawlers;
 
 import org.springframework.stereotype.Component;
-import whale.dto.LinkDTO;
+import whale.entity.Link;
 
 import java.io.IOException;
 import java.nio.file.Files;
@@ -13,34 +13,34 @@ import java.util.stream.Collectors;
 @Component
 public class FileLinkCrawler extends LinkCrawler{
 
-    public FileLinkCrawler(LinkDTO resource){
+    public FileLinkCrawler(Link resource){
         super(resource);
     }
 
-    public FileLinkCrawler(LinkDTO resource, String pattern) {
+    public FileLinkCrawler(Link resource, String pattern) {
         super(resource, pattern);
     }
 
     public FileLinkCrawler(String filepath) {
-        super(LinkDTO.of(filepath));
+        super(filepath);
     }
 
     @Override
     String getContent() throws IOException {
         String result = Files
-                .readAllLines(Path.of(resourceAddress.url()))
+                .readAllLines(Path.of(resourceAddress.getUrl()))
                 .stream()
                 .collect(Collectors.joining());
         return result;
     }
 
     @Override
-    public Collection<LinkDTO> fetchLinks() {
+    public Collection<Link> fetchLinks() {
         try {
-            return Files.readAllLines(Path.of(resourceAddress.url()))
+            return Files.readAllLines(Path.of(resourceAddress.getUrl()))
                     .stream()
                     .map(
-            e -> LinkDTO.of(e, "file", true)
+            e -> Link.of(e, resourceAddress.getUrl())
                     )
                     .filter(this::isValidPath)
                     .collect(Collectors.toSet());
@@ -50,13 +50,13 @@ public class FileLinkCrawler extends LinkCrawler{
     }
 
     @Override
-    Collection<LinkDTO> findLinksByPattern() {
+    Collection<Link> findLinksByPattern() {
         return List.of();
     }
 
     @Override
-    public boolean isValidPath(LinkDTO path) {
-        if (Files.exists(Path.of(path.url())) && Files.isRegularFile(Path.of(path.url()))) {
+    public boolean isValidPath(Link path) {
+        if (Files.exists(Path.of(path.getUrl())) && Files.isRegularFile(Path.of(path.getUrl()))) {
             return true;
         }
         return false;

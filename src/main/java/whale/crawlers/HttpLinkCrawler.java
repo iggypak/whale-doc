@@ -5,76 +5,73 @@ import org.jsoup.Jsoup;
 import org.jsoup.nodes.Document;
 import org.jsoup.select.Elements;
 import org.springframework.stereotype.Component;
-import whale.dto.LinkDTO;
-
+import whale.entity.Link;
 import java.io.IOException;
 import java.net.MalformedURLException;
 import java.net.URL;
 import java.util.*;
+import java.util.stream.Collectors;
 
 @Component
 public class HttpLinkCrawler extends LinkCrawler {
     private static final String INCORRECT_MIMETYPE_MESSAGE = "not text mime-type";
     private static final int CONNECTION_TIMEOUT = 2000;
-    private final Set<String> uniqueLinks = new HashSet<>();
-    private final Map<String, String> mistakenLinks = new HashMap<>();
 
     public HttpLinkCrawler(String url) throws MalformedURLException {
-        super(LinkDTO.of(url));
+        super(url);
     }
 
     @Override
     public String getContent() throws IOException {
-        return new URL(resourceAddress.url()).getContent().toString();
+        return new URL(resourceAddress.getUrl()).getContent().toString();
     }
 
     @Override
-    public Collection<LinkDTO> fetchLinks() {
-        Collection<String> result = buildLinkTree(fetchLinks(resourceAddress.url()));
-        result.add(resourceAddress.url());
-        return result
-                .stream()
-                .map(
-                        e -> LinkDTO.of(e, "url", true)
-                ).toList();
+    public Collection<Link> fetchLinks() {
+        return buildLinkTree(fetchLinks(resourceAddress.getUrl()));
     }
 
     private void printMistakenLinks() {
-        mistakenLinks.forEach((url, message) -> {
-            System.err.println(url + ": " + message);
+        linkStorageService.getAllLinks().forEach((url) -> {
+            System.err.println(url + " -> " + url.getComment());
         });
     }
 
-    private Collection<String> buildLinkTree(Collection<String> links) {
-        for (String link : links) {
+    private Collection<Link> buildLinkTree(Collection<Link> links) {
+        for (Link link : links) {
             if (isLinkEligibleForProcessing(link)) {
                 if (isValidPath(link)) {
-                    uniqueLinks.add(link);
-                    uniqueLinks.addAll(buildLinkTree(fetchLinks(link)));
+                    link.setValidUrl(true);
+                    linkStorageService.saveLink(link);
+                    linkStorageService.saveLinkBatch(new HashSet<>(buildLinkTree(fetchLinks(link.getUrl()))));
                 } else {
-                    mistakenLinks.put(link, INCORRECT_MIMETYPE_MESSAGE);
+                    link.setValidUrl(false);
+                    link.setComment(INCORRECT_MIMETYPE_MESSAGE);
+                    linkStorageService.saveLink(link);
                 }
             }
         }
-        return uniqueLinks;
+        return linkStorageService.getAllLinks();
     }
 
-    private boolean isLinkEligibleForProcessing(String link) {
-        return link.startsWith(resourceAddress.url()) && !uniqueLinks.contains(link) && !link.equals(resourceAddress.url());
+    private boolean isLinkEligibleForProcessing(Link link) {
+        return link.getUrl().startsWith(resourceAddress.getUrl()) && !linkStorageService.existsById(link.getUrl()) && !link.equals(resourceAddress.getUrl());
     }
 
-    private Collection<String> fetchLinks(String httpLink) {
+    private Collection<Link> fetchLinks(String httpLink) {
         try {
             Document dom = Jsoup.connect(httpLink)
                     .timeout(CONNECTION_TIMEOUT)
                     .get();
             Elements elements = dom.select("a");
-            return elements.stream()
+            return elements
+                    .stream()
                     .filter(element -> element.hasAttr("href"))
                     .map(element -> resolvePath(httpLink, element.attr("href")))
-                    .toList();
+                    .map(link -> Link.of(link, resourceAddress.getUrl()))
+                    .collect(Collectors.toSet());
         } catch (HttpStatusException e) {
-            mistakenLinks.put(httpLink, e.getMessage());
+            linkStorageService.saveLink(buildErrorLink(httpLink, e.getMessage()));
             return List.of();
         } catch (IOException e) {
             throw new RuntimeException(e);
@@ -82,18 +79,18 @@ public class HttpLinkCrawler extends LinkCrawler {
     }
 
     @Override
-    Collection<LinkDTO> findLinksByPattern() {
+    Collection<Link> findLinksByPattern() {
         return List.of();
     }
 
     private boolean isValidPath(String httpLink) {
-        return isValidPath(LinkDTO.of(httpLink));
+        return isValidPath(new Link(httpLink));
     }
 
     @Override
-    boolean isValidPath(LinkDTO path) {
+    boolean isValidPath(Link path) {
         try {
-            String contentType = new URL(path.url()).openConnection().getContentType();
+            String contentType = new URL(path.getUrl()).openConnection().getContentType();
             return contentType != null && contentType.matches(".*(text|application/xml|application/*+xml).*");
         } catch (IOException e) {
             throw new RuntimeException(e);
@@ -105,8 +102,16 @@ public class HttpLinkCrawler extends LinkCrawler {
             return baseUrl;
         }
         if (path.startsWith("/")) {
-            return resourceAddress.url().concat(path);
+            return resourceAddress.getUrl().concat(path);
         }
         return path;
+    }
+
+    private Link buildErrorLink(String link, String errorMsg) {
+        Link errorLink = new Link();
+        errorLink.setValidUrl(false);
+        errorLink.setUrl(link);
+        errorLink.setComment(errorMsg);
+        return mapToDto(errorLink);
     }
 }

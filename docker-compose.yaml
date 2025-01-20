@@ -1,0 +1,29 @@
+version: '3.9'
+
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    environment:
+      SPRING_REDIS_HOST: redis
+      SPRING_REDIS_PORT: 6379
+      SPRING_DATASOURCE_URL: jdbc:clickhouse://clickhouse:8123/default
+      SPRING_DATASOURCE_USERNAME: default
+      SPRING_DATASOURCE_PASSWORD: ""
+      APP_SAVE_TO_CLICKHOUSE: "true"
+    depends_on:
+      - redis
+      - clickhouse
+
+  redis:
+    image: redis:7
+    ports:
+      - "6379:6379" # Публикуем порт Redis
+    command: ["redis-server"]
+
+  clickhouse:
+    image: yandex/clickhouse-server:latest
+    ports:
+      - "8123:8123" # Публикуем HTTP порт ClickHouse
+      - "9000:9000" # Публикуем порт TCP для запросов
